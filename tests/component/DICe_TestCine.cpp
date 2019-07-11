@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
   try{
     DICe::cine::Cine_Reader cine_reader("./images/invalid_color.cine",outStream.getRawPtr());
   }
-  catch(...){
+  catch(const std::exception &e){
     exception_thrown = true;
     *outStream << "exception thrown as expected." << std::endl;
   }
@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
     std::string file_name = "./images/packed_12bpp_1000.cine";
     Teuchos::RCP<Image> cine_img = Teuchos::rcp(new Image(file_name.c_str()));
   }
-  catch(...){
+  catch(const std::exception &e){
     exception_thrown=true;
     *outStream << "exception thrown as expected." << std::endl;
   }
@@ -296,7 +296,6 @@ int main(int argc, char *argv[]) {
     errorFlag++;
   }
 
-#if DICE_USE_DOUBLE
   // try creating a cine image using the standard image interface without a reader constructed manually:
   Teuchos::RCP<DICe::Image> img_cine_0 = Teuchos::rcp(new Image("./images/phantom_v1610_16bpp_-85.cine"));
   Teuchos::RCP<DICe::Image> img_cine_0_gold = Teuchos::rcp(new Image("./images/image_cine_-85.rawi"));
@@ -307,7 +306,7 @@ int main(int argc, char *argv[]) {
     errorFlag++;
   }
   //img_cine_0->write("image_cine_-85.rawi");
-#endif
+
 
   *outStream << "--- End test ---" << std::endl;
 

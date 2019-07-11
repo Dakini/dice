@@ -209,17 +209,6 @@ void create_string_maps()
   field_name_string[field_enums::UNCERTAINTY]                                        = "UNCERTAINTY";
   field_name_string[field_enums::UNCERTAINTY_ANGLE]                                  = "UNCERTAINTY_ANGLE";
   field_name_string[field_enums::STEREO_M_MAX]                                       = "STEREO_M_MAX";
-	field_name_string[field_enums::PROJECTION_Z]																		   = "PROJECTION_Z";
-	field_name_string[field_enums::PROJECTION_PHI]                                     = "PROJECTION_PHI";
-	field_name_string[field_enums::PROJECTION_THETA]                                   = "PROJECTION_THETA";
-  field_name_string[field_enums::ROT_TRANS_3D_ANG_X]                                 = "ROT_TRANS_3D_ANG_X";
-  field_name_string[field_enums::ROT_TRANS_3D_ANG_Y]                                 = "ROT_TRANS_3D_ANG_Y";
-  field_name_string[field_enums::ROT_TRANS_3D_ANG_Z]                                 = "ROT_TRANS_3D_ANG_Z";
-  field_name_string[field_enums::ROT_TRANS_3D_TRANS_X]                               = "ROT_TRANS_3D_TRANS_X";
-  field_name_string[field_enums::ROT_TRANS_3D_TRANS_Y]                               = "ROT_TRANS_3D_TRANS_Y";
-  field_name_string[field_enums::ROT_TRANS_3D_TRANS_Z]                               = "ROT_TRANS_3D_TRANS_Z";
-
-		
 
   for (std::map<field_enums::Field_Type,std::string>::iterator pos = field_type_string.begin(); pos != field_type_string.end(); ++pos){
     string_field_type[pos->second] = pos->first;

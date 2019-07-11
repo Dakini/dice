@@ -39,8 +39,7 @@
 // ************************************************************************
 // @HEADER
 #include <DICe.h>
-#include <DICe_Image.h>
-#include <DICe_Feature.h>
+#include <DICe_StereoCalib.h>
 
 #include <Teuchos_RCP.hpp>
 #include <Teuchos_oblackholestream.hpp>
@@ -50,6 +49,8 @@
 
 using namespace DICe;
 
+
+
 int main(int argc, char *argv[]) {
 
   DICe::initialize(argc, argv);
@@ -57,7 +58,6 @@ int main(int argc, char *argv[]) {
   // only print output if args are given (for testing the output is quiet)
   int_t iprint     = argc - 1;
   int_t errorFlag  = 0;
-  scalar_t errorTol = 0.5;
   Teuchos::RCP<std::ostream> outStream;
   Teuchos::oblackholestream bhs; // outputs nothing
   if (iprint > 0)
@@ -67,37 +67,74 @@ int main(int argc, char *argv[]) {
 
   *outStream << "--- Begin test ---" << std::endl;
 
-  Teuchos::RCP<Image> left_img = Teuchos::rcp(new Image("../images/refSpeckled.tif"));
-  Teuchos::RCP<Image> right_img = Teuchos::rcp(new Image("../images/shiftSpeckled_160x140y.tif"));
+  *outStream << "testing checkerboard grid images " << std::endl;
 
-  std::vector<scalar_t> left_x;
-  std::vector<scalar_t> left_y;
-  std::vector<scalar_t> right_x;
-  std::vector<scalar_t> right_y;
+  std::vector<std::string> image_list;
+  for(int_t i=1;i<10;++i){
+    std::stringstream left_name;
+    std::stringstream right_name;
+    left_name << "../images/left0" << i << ".jpg";
+    right_name << "../images/right0" << i << ".jpg";
+    image_list.push_back(left_name.str());
+    image_list.push_back(right_name.str());
+  }
+  for(int_t i=10;i<15;++i){
+    std::stringstream left_name;
+    std::stringstream right_name;
+    left_name << "../images/left" << i << ".jpg";
+    right_name << "../images/right" << i << ".jpg";
+    image_list.push_back(left_name.str());
+    image_list.push_back(right_name.str());
+  }
+  *outStream << "image list: " << std::endl;
+  for(size_t i=0;i<image_list.size();++i){
+    *outStream << image_list[i] << std::endl;
+  }
 
-  const float tol = 0.001f;
-  match_features(left_img,right_img,left_x,left_y,right_x,right_y,tol,"res.png");
-  const int_t num_matches = left_x.size();
-  *outStream << "number of features matched: " << num_matches << std::endl;
-  if(num_matches!=1962){
+  const float square_size = 1.0;
+  int mode = 0; // checkerboard
+  int threshold = 30;
+  const float rms = StereoCalib(mode, image_list, 6, 9, square_size, threshold, true, false, "checkerboard_cal.txt");
+	*outStream << "Square target rms error: " << rms << std::endl;
+
+  if(rms <0.0 || rms > 0.75){
+    *outStream << "Error, rms error too high or negative: " << rms << std::endl;
     errorFlag++;
-    *outStream << "Error wrong number of matching features detected. Should be 1962 and is " << num_matches << std::endl;
   }
 
-  for(int_t i=0;i<num_matches;++i){
-    const scalar_t dist_x = right_x[i] - left_x[i];
-    const scalar_t dist_y = right_y[i] - left_y[i];
-    if(std::abs(dist_x - 160) > errorTol){
-      errorFlag++;
-      *outStream << "Matching point error in x left (" << left_x[i] << "," << left_y[i] << ") right (" << right_x[i] << "," << right_y[i] << ") dist " << dist_x <<
-          " should be 160" << std::endl;
-    }
-    if(std::abs(dist_y - 140) > errorTol){
-      errorFlag++;
-      *outStream << "Matching point error in y left (" << left_x[i] << "," << left_y[i] << ") right (" << right_x[i] << "," << right_y[i] << ") dist " << dist_y <<
-          " should be 140" << std::endl;
-    }
+  *outStream << "testing circle grid images" << std::endl;
+
+  std::vector<std::string> image_list_circ;
+  for(int_t i=1;i<10;++i){
+    std::stringstream left_name;
+    std::stringstream right_name;
+    left_name << "../images/CalB-sys2-000" << i << "_0.jpeg";
+    right_name << "../images/CalB-sys2-000" << i << "_1.jpeg";
+    image_list_circ.push_back(left_name.str());
+    image_list_circ.push_back(right_name.str());
   }
+  for(int_t i=10;i<15;++i){
+    std::stringstream left_name;
+    std::stringstream right_name;
+    left_name << "../images/CalB-sys2-00" << i << "_0.jpeg";
+    right_name << "../images/CalB-sys2-00" << i << "_1.jpeg";
+    image_list_circ.push_back(left_name.str());
+    image_list_circ.push_back(right_name.str());
+  }
+  *outStream << "circle grid image list: " << std::endl;
+  for(size_t i=0;i<image_list_circ.size();++i){
+    *outStream << image_list_circ[i] << std::endl;
+  }
+
+  const float circ_size = 3.5;
+  mode = 1; // vic3d circle grid with marker dots and possible other random dots in the pattern
+  const float rms_circ = StereoCalib(mode,image_list_circ, 6, 4, circ_size, threshold, true, false, "circle_cal.txt");
+
+  if(rms_circ <0.0 || rms_circ > 0.75){
+    *outStream << "Error, rms error too high or negative for circle grid: " << rms_circ << std::endl;
+    errorFlag++;
+  }
+
 
   *outStream << "--- End test ---" << std::endl;
 

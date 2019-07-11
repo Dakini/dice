@@ -46,16 +46,6 @@
 #define DICE_TWOPI 6.28318530717958647692
 
 #if defined(WIN32)
-// disable some common windows compiler warnings that we don't really care about
-#pragma warning(disable:4005)
-#pragma warning(disable:4091)
-#pragma warning(disable:4244)
-#pragma warning(disable:4251)
-#pragma warning(disable:4267)
-#pragma warning(disable:4297)
-#pragma warning(disable:4305)
-#pragma warning(disable:4800)
-#pragma warning(disable:4996)
 #  if defined(DICE_LIB_EXPORTS_MODE)
 #    define DICE_LIB_DLL_EXPORT __declspec(dllexport)
 #  else
@@ -177,8 +167,6 @@ const char* const convert_cine_to_8_bit = "convert_cine_to_8_bit";
 const char* const initial_condition_file = "initial_condition_file";
 /// String parameter name
 const char* const shape_function_type = "shape_function_type";
-/// String parameter name
-const char* const enable_projection_shape_function = "enable_projection_shape_function";
 /// String parameter name
 const char* const enable_translation = "enable_translation";
 /// String parameter name
@@ -321,34 +309,6 @@ const char* const num_image_integration_points = "num_image_integration_points";
 const char* const global_element_type = "global_element_type";
 /// String parameter name, only for global DIC
 const char* const use_fixed_point_iterations = "use_fixed_point_iterations";
-/// String parameter name
-const char* const system_type_3D = "system_type_3D";
-/// String parameter name
-const char* const cal_file_ID = "cal_file_ID";
-/// String parameter name
-const char* const cal_opencv_options = "cal_opencv_options";
-/// String parameter name
-const char* const cal_image_intersections = "cal_image_intersections";
-/// String parameter name
-const char* const xml_file_format = "xml_file_format";
-/// String parameter name
-const char* const DICe_xml_camera_system_file = "DICe_xml_camera_system_file";
-/// String parameter name
-const char* const DICe_xml_calibration_file = "DICe_xml_calibration_file";
-/// String parameter name
-const char* const user_6_param_transform = "user_6_param_transform";
-/// String parameter name
-const char* const user_4x4_param_transform = "user_4x4_param_transform";
-/// String parameter name
-const char* const opencv_3x4_param_transform = "opencv_3x4_param_transform";
-/// String parameter name
-const char* const rotation_3x3_matrix = "rotation_3x3_matrix";
-/// String parameter name
-const char* const extrinsics_relative_camera_to_camera = "extrinsics_relative_camera_to_camera";
-/// String parameter name, only for global DIC
-const char* const write_exodus_output = "write_exodus_output";
-/// String parameter name
-const char* const threshold_block_size = "threshold_block_size";
 
 
 /// enums:
@@ -432,7 +392,6 @@ enum Initialization_Method {
   USE_OPTICAL_FLOW,
   USE_ZEROS,
   USE_FEATURE_MATCHING,
-  USE_IMAGE_REGISTRATION,
   INITIALIZATION_METHOD_NOT_APPLICABLE,
   // DON'T ADD ANY BELOW MAX
   MAX_INITIALIZATION_METHOD,
@@ -447,7 +406,6 @@ const static char * initializationMethodStrings[] = {
   "USE_OPTICAL_FLOW",
   "USE_ZEROS",
   "USE_FEATURE_MATCHING",
-  "USE_IMAGE_REGISTRATION",
   "INITIALIZATION_METHOD_NOT_APPLICABLE"
 };
 
@@ -456,7 +414,6 @@ enum Shape_Function_Type {
   AFFINE_SF=0,
   QUADRATIC_SF,
   PROJECTION_SF,
-  RIGID_BODY_SF,
   // DON'T ADD ANY BELOW MAX
   MAX_SF,
   NO_SUCH_SF
@@ -465,8 +422,7 @@ enum Shape_Function_Type {
 const static char * shapeFunctionTypeStrings[] = {
   "AFFINE",
   "QUADRATIC",
-  "PROJECTION",
-  "RIGID_BODY"
+  "PROJECTION"
 };
 
 /// Optimization method
@@ -538,8 +494,6 @@ const static char * correlationRoutineStrings[] = {
   "TRACKING_ROUTINE",
   "CORRELATION_ROUTINE_NOT_APPLICABLE"
 };
-
-
 
 /// Status flags
 enum Status_Flag{
@@ -640,16 +594,6 @@ enum Image_File_Type{
   NO_SUCH_IMAGE_FILE_TYPE
 };
 
-
-/// The type of cam system parameter, used for creating template input files
-enum Cam_Sys_Parameter_Type {
-  CAM_SYS_STRING_PARAM = 0,
-  CAM_SYS_PARAM_PARAM, // parameter that is another parameter list
-  CAM_SYS_SCALAR_PARAM,
-  CAM_SYS_SIZE_PARAM,
-  CAM_SYS_BOOL_PARAM
-};
-
 /// The type of correlation parameter, used for creating template input files
 enum Correlation_Parameter_Type{
   STRING_PARAM=0,
@@ -658,7 +602,6 @@ enum Correlation_Parameter_Type{
   SIZE_PARAM,
   BOOL_PARAM
 };
-
 
 /// Combine mode for fields
 enum Combine_Mode{
@@ -822,11 +765,6 @@ const Correlation_Parameter pixel_integration_order_param(pixel_integration_orde
   SIZE_PARAM,
   true,
   "Specifies the integration order to use (number of subdivisions for each pixel). Used only in the constrained optimization formulation.");
-/// Correlation parameter and properties
-const Correlation_Parameter threshold_block_size_param(threshold_block_size,
-  SIZE_PARAM,
-  true,
-  "The block size to use for the feature matching initializer when thresholding is enabled.");
 
 /// Correlation parameter and properties
 const Correlation_Parameter obstruction_skin_factor_param(obstruction_skin_factor,
@@ -986,11 +924,6 @@ const Correlation_Parameter shape_function_type_param(shape_function_type,
   shapeFunctionTypeStrings,
   MAX_SF);
 /// Correlation parameter and properties
-const Correlation_Parameter enable_projection_shape_function_param(enable_projection_shape_function,
-  BOOL_PARAM,
-  true,
-  "Enables the projection based shape function (all components)");
-/// Correlation parameter and properties
 const Correlation_Parameter enable_translation_param(enable_translation,
   BOOL_PARAM,
   true,
@@ -1128,12 +1061,6 @@ const Correlation_Parameter use_fixed_point_iterations_param(use_fixed_point_ite
   "Used only for global, uses the fixed point iteration scheme for the global method."
 );
 /// Correlation parameter and properties
-const Correlation_Parameter write_exodus_output_param(write_exodus_output,
-  BOOL_PARAM,
-  true,
-  "Used when DICE_ENABLE_GLOBAL is true, writes an exodus output file."
-);
-/// Correlation parameter and properties
 const Correlation_Parameter global_element_type_param(global_element_type,
   STRING_PARAM,
   true,
@@ -1219,11 +1146,10 @@ const Correlation_Parameter filter_failed_cine_pixels_param(filter_failed_cine_p
   false,
   "Filter out any pixels that failed during cine acquisition");
 
-
 // TODO don't forget to update this when adding a new one
 /// The total number of valid correlation parameters
 /// Vector of valid parameter names
-const int_t num_valid_correlation_params = 88;
+const int_t num_valid_correlation_params = 85;
 /// Vector oIf valid parameter names
 const Correlation_Parameter valid_correlation_params[num_valid_correlation_params] = {
   correlation_routine_param,
@@ -1310,10 +1236,7 @@ const Correlation_Parameter valid_correlation_params[num_valid_correlation_param
   global_element_type_param,
   num_image_integration_points_param,
   use_fixed_point_iterations_param,
-  compute_laplacian_image_param,
-  enable_projection_shape_function_param,
-  write_exodus_output_param,
-  threshold_block_size_param
+  compute_laplacian_image_param
 };
 
 // TODO don't forget to update this when adding a new one
@@ -1354,14 +1277,6 @@ const Correlation_Parameter valid_global_correlation_params[num_valid_global_cor
   initial_condition_file_param
 };
 
-
 } // end DICe namespace
-
-
-
-
-
-
-
 
 #endif

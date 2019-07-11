@@ -1,6 +1,4 @@
 
-
-
 SET(DICE_SOURCES
   ./base/DICe.cpp
   ./base/DICe_Image.cpp
@@ -8,8 +6,6 @@ SET(DICE_SOURCES
   ./base/DICe_Shape.cpp
   ./base/DICe_FieldEnums.cpp
   ./base/DICe_LocalShapeFunction.cpp
-  ./core/DICe_Camera.cpp
-  ./core/DICe_CameraSystem.cpp
   ./core/DICe_Parser.cpp
   ./core/DICe_XMLUtils.cpp
   ./core/DICe_ParameterUtilities.cpp
@@ -26,17 +22,13 @@ SET(DICE_SOURCES
   ./mesh/DICe_Mesh.cpp  
   )
 
-
 SET(DICE_HEADERS
   ./base/DICe.h
   ./base/DICe_Image.h
   ./base/DICe_Subset.h
   ./base/DICe_Shape.h
-  ./base/DICe_Matrix.h
   ./base/DICe_FieldEnums.h
   ./base/DICe_LocalShapeFunction.h
-  ./core/DICe_Camera.h
-  ./core/DICe_CameraSystem.h
   ./core/DICe_Parser.h
   ./core/DICe_XMLUtils.h
   ./core/DICe_PointCloud.h
@@ -47,6 +39,7 @@ SET(DICE_HEADERS
   ./core/DICe_Triangulation.h
   ./core/DICe_PostProcessor.h
   ./core/DICe_Initializer.h
+  ./core/DICe_Utilities.h
   ./core/DICe_Decomp.h
   ./kdtree/nanoflann.hpp
   ./fft/DICe_FFT.h
@@ -113,14 +106,12 @@ IF(DICE_ENABLE_OPENCV)
   SET(DICE_SOURCES
     ${DICE_SOURCES}
     ./opencv/DICe_Feature.cpp
-    ./opencv/DICe_Calibration.cpp
-    ./opencv/DICe_OpenCVServerUtils.cpp
+    ./opencv/DICe_StereoCalib.cpp
   )
   SET(DICE_HEADERS
     ${DICE_HEADERS}
     ./opencv/DICe_Feature.h
-    ./opencv/DICe_Calibration.h
-    ./opencv/DICe_OpenCVServerUtils.h
+    ./opencv/DICe_StereoCalib.h
   )
 ENDIF()
 

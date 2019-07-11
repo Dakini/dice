@@ -44,11 +44,8 @@
 
 #include <DICe.h>
 #include <DICe_FieldEnums.h>
-#include <DICe_CameraSystem.h>
 
 #include <Teuchos_RCP.hpp>
-
-
 /*!
  *  \namespace DICe
  *  @{
@@ -59,12 +56,11 @@ namespace DICe {
 // forward declaration
 class Schema;
 
-/// \class DICe:::Local_Shape_Function
+/// \class DICe:::LocalShapeFunction
 /// \brief A generic class that provides an abstraction of the local DIC shape function
 class DICE_LIB_DLL_EXPORT
 Local_Shape_Function {
 public:
-
   /// base class constructor
   Local_Shape_Function():
   num_params_(0){};
@@ -337,20 +333,8 @@ public:
     TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"Error, this method has not been implemented yet for Affine_Shape_Function");
   };
 
-private:
-  /// flags used to turn off certain parameters in the shape function
-  bool has_rotz_ = false;
-  bool has_nsxx_ = false;
-  bool has_nsyy_ = false;
-  bool has_ssxy_ = false;
 
-  /// index of the shape function parameter in the parameters list
-  int dx_ind_ = -1;
-  int dy_ind_ = -1;
-  int rotz_ind_ = -1;
-  int nsxx_ind_ = -1;
-  int nsyy_ind_ = -1;
-  int ssxy_ind_ = -1;
+private:
 };
 
 /// \class DICe::Quadratic_Shape_Function
@@ -418,212 +402,9 @@ public:
   /// see base class description
   virtual void update_params_for_centroid_change(const scalar_t & delta_x,
     const scalar_t & delta_y);
-private:
-};
-
-
-//mimic the quadratic shape function for the projection shape function
-/// \class DICe::Projection_Shape_Function
-/// \brief 3 parameter projection from cam 0 to cam 1
-
-class DICE_LIB_DLL_EXPORT
-  Projection_Shape_Function : public Local_Shape_Function {
-public:
-
-  /// \enum Projection_Param the 3 parameters that govern the projection/back projection transform
-  enum Projection_Param {
-    ZP = 0,
-    THETA,
-    PHI
-  };
-
-  /// \enum Rot_Trans_Param 6 rigid body motion parameters
-  // made these class scope specific since they are used for vector index ordering
-  enum Rot_Trans_3D_Param {
-    ANGLE_X = 0,
-    ANGLE_Y,
-    ANGLE_Z,
-    TRANS_X,
-    TRANS_Y,
-    TRANS_Z
-  };
-
-  /// \brief constructor with the parameters needed to setup the transformation
-  /// \param system_file file used to read in the camera and orientation parameters
-  /// \param source_camera_id primary camera where the subset locations are specified
-  /// \param target_camera_id secondary camera to project to
-  Projection_Shape_Function(const std::string & system_file,
-    const size_t source_camera_id,
-    const size_t target_camera_id);
-
-  /// virtual destructor
-  virtual ~Projection_Shape_Function() {};
-
-  /// clear the parameters
-  virtual void clear();
-
-  /// clears all the fields associated with this shape function
-  /// \param schema pointer to a schema that holds the mesh with the fields
-  virtual void reset_fields(Schema * schema);
-
-  /// see base class description
-  virtual void map(const scalar_t & x,
-    const scalar_t & y,
-    const scalar_t & cx,
-    const scalar_t & cy,
-    scalar_t & out_x,
-    scalar_t & out_y);
-
-  /// see base class description
-  virtual void residuals(const scalar_t & x,
-    const scalar_t & y,
-    const scalar_t & cx,
-    const scalar_t & cy,
-    const scalar_t & gx,
-    const scalar_t & gy,
-    std::vector<scalar_t> & residuals,
-    const bool use_ref_grads = false);
-
-  /// see base class description
-  virtual void save_fields(Schema * schema,
-    const int_t subset_gid);
-
-  /// see base class description
-  virtual void add_translation(const scalar_t & u,
-    const scalar_t & v){
-    TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"not implemented yet");
-  }
-
-  /// see base class description
-  virtual void map_to_u_v_theta(const scalar_t & cx,
-    const scalar_t & cy,
-    scalar_t & out_u,
-    scalar_t & out_v,
-    scalar_t & out_theta){
-    TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"not implemented yet");
-  }
-
-  /// see base class description
-  virtual void insert_motion(const scalar_t & u,
-    const scalar_t & v,
-    const scalar_t & theta){
-    TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"not implemented yet");
-  }
-
-  /// see base class description
-  virtual void insert_motion(const scalar_t & u,
-    const scalar_t & v){
-    TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"not implemented yet");
-  }
-
-  /// see base class description
-  virtual void update_params_for_centroid_change(const scalar_t & delta_x,
-    const scalar_t & delta_y){
-    TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"not implemented yet");
-  }
 
 private:
-  /// camera to use as the source camera
-  size_t source_cam_id_;
-  size_t target_cam_id_;
-  /// camera system to apply all the transformations
-  Teuchos::RCP<Camera_System> camera_system_;
 };
-
-class DICE_LIB_DLL_EXPORT
-  Rigid_Body_Shape_Function : public Local_Shape_Function {
-public:
-
-  /// \enum Rot_Trans_Param 6 rigid body motion parameters
-  // made these class specific enums since they are used for vector ordering within the class
-  enum Rot_Trans_3D_Param {
-    ANGLE_X = 0, // in degrees
-    ANGLE_Y,
-    ANGLE_Z,
-    TRANS_X,
-    TRANS_Y,
-    TRANS_Z
-  };
-
-  /// \brief constructor with the parameters needed to setup the transformation
-  /// \param system file camera system definition file to use for camera to camera projections (now limited to only having one camera max)
-  Rigid_Body_Shape_Function(const std::string & system_file);
-
-  // virtual destructor
-  virtual ~Rigid_Body_Shape_Function() {};
-
-  /// clear the parameters
-  virtual void clear();
-
-  /// clears all the fields associated with this shape function
-  /// \param schema pointer to a schema that holds the mesh with the fields
-  virtual void reset_fields(Schema * schema);
-
-  /// see base class description
-  virtual void map(const scalar_t & x,
-    const scalar_t & y,
-    const scalar_t & cx,
-    const scalar_t & cy,
-    scalar_t & out_x,
-    scalar_t & out_y);
-
-  /// see base class description
-  virtual void residuals(const scalar_t & x,
-    const scalar_t & y,
-    const scalar_t & cx,
-    const scalar_t & cy,
-    const scalar_t & gx,
-    const scalar_t & gy,
-    std::vector<scalar_t> & residuals,
-    const bool use_ref_grads = false);
-
-  /// see base class description
-  virtual void save_fields(Schema * schema,
-    const int_t subset_gid);
-
-  /// see base class description
-  virtual void add_translation(const scalar_t & u,
-    const scalar_t & v){
-    std::cout << "error: add_translation has not been implemented for rigid body shape functions" << std::endl;
-    TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"not implemented yet");
-  }
-
-  /// see base class description
-  virtual void map_to_u_v_theta(const scalar_t & cx,
-    const scalar_t & cy,
-    scalar_t & out_u,
-    scalar_t & out_v,
-    scalar_t & out_theta);
-
-  /// see base class description
-  virtual void insert_motion(const scalar_t & u,
-    const scalar_t & v,
-    const scalar_t & theta){
-    std::cout << "error: insert_motion has not been implemented for rigid body shape functions" << std::endl;
-    TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"not implemented yet");
-  }
-
-  /// see base class description
-  virtual void insert_motion(const scalar_t & u,
-    const scalar_t & v){
-    std::cout << "error: insert_motion has not been implemented for rigid body shape functions" << std::endl;
-    TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"not implemented yet");
-  }
-
-  /// see base class description
-  virtual void update_params_for_centroid_change(const scalar_t & delta_x,
-    const scalar_t & delta_y){
-    // do nothing for this shape function
-  }
-
-private:
-  /// Camera System to hold all the camera intrinsic and extrinsic information
-  Teuchos::RCP<Camera_System> camera_system_;
-  // there is no target camera id because for rigid body motion shape function, the source and target camera are the same
-  /// projection parameters that connect the sensor coordinates to the camera zero coordinates of a facet in space
-  std::vector<scalar_t> facet_params_;
-};
-
 
 /// factory to create the right shape function
 /// \param schema pointer to a schema to use to initialize the shape function

@@ -271,7 +271,7 @@ ENDIF()
 #IF(WIN32)
 #  SET(DICE_LIBRARIES ${DICE_LIBRARIES} libf2c)
 #ENDIF()
-
+#SET(DICE_LIBRARIES ${DICE_LIBRARIES} libf2c)
 # if debug messages are turned on:
 IF(DICE_DEBUG_MSG)
   MESSAGE(STATUS "Debugging messages are ON")

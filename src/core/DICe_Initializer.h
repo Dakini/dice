@@ -52,10 +52,6 @@
 
 #include <nanoflann.hpp>
 
-#include <opencv2/features2d.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/opencv.hpp>
-
 #include <set>
 #include <cassert>
 
@@ -261,7 +257,10 @@ public:
 
   /// constructor
   /// \param schema the parent schema
-  Phase_Correlation_Initializer(Schema * schema);
+  Phase_Correlation_Initializer(Schema * schema):
+  Initializer(schema),
+  phase_cor_u_x_(0.0),
+  phase_cor_u_y_(0.0){};
 
   /// virtual destructor
   virtual ~Phase_Correlation_Initializer(){};
@@ -302,7 +301,15 @@ public:
     const scalar_t & step_size_v,
     const scalar_t & search_dim_v,
     const scalar_t & step_size_theta,
-    const scalar_t & search_dim_theta);
+    const scalar_t & search_dim_theta):
+  Initializer(schema),
+  subset_(subset),
+  step_size_u_(step_size_u),
+  step_size_v_(step_size_v),
+  search_dim_u_(search_dim_u),
+  search_dim_v_(search_dim_v),
+  step_size_theta_(step_size_theta),
+  search_dim_theta_(search_dim_theta){};
 
   /// virtual destructor
   virtual ~Search_Initializer(){};
@@ -362,8 +369,10 @@ public:
 
   /// constructor
   /// \param schema the parent schema
-  Feature_Matching_Initializer(Schema * schema,
-    const int_t threshold_block_size=-1);
+  Feature_Matching_Initializer(Schema * schema):
+    Initializer(schema),
+//    prev_img_name_(""),
+    first_call_(true){};
 
   /// virtual destructor
   virtual ~Feature_Matching_Initializer(){};
@@ -388,41 +397,10 @@ protected:
   Teuchos::RCP<Image> prev_img_;
   /// previous image name (used if the images are constructed from file rather than array)
 //  std::string prev_img_name_;
-  int_t threshold_block_size_;
   /// first time the pre execution tasks are called
   bool first_call_;
 };
 
-/// \class DICe::Image_Registration_Initializer
-/// \brief an initializer that uses an ECC transform to initialize the fields
-class DICE_LIB_DLL_EXPORT
-Image_Registration_Initializer : public Initializer{
-public:
-
-  /// constructor
-  /// \param schema the parent schema
-  Image_Registration_Initializer(Schema * schema);
-
-  /// virtual destructor
-  virtual ~Image_Registration_Initializer(){};
-
-  /// see base class description
-  virtual void pre_execution_tasks();
-
-  /// see base class description
-  virtual Status_Flag initial_guess(const int_t subset_gid,
-    Teuchos::RCP<Local_Shape_Function> shape_function);
-
-protected:
-  /// matrix to hold the tranform values
-  cv::Mat ecc_transform_;
-  /// storage for the rotation angle which should be the same for all points
-  scalar_t theta_;
-  /// previous image pointer (used if the images are constructed from an array)
-  Teuchos::RCP<Image> prev_img_;
-  /// first time the pre execution tasks are called
-  bool first_call_;
-};
 
 
 /// \class DICe::Zero_Value_Initializer

@@ -164,10 +164,6 @@ public:
   /// default constructor tasks
   void default_constructor_tasks(const Teuchos::RCP<Teuchos::ParameterList> & params=Teuchos::null);
 
-  /// update an already allocated image class with new intensity field and gradients
-  void update_image_fields(const char * file_name,
-    const Teuchos::RCP<Teuchos::ParameterList> & params);
-
   /// post allocation tasks
   void post_allocation_tasks(const Teuchos::RCP<Teuchos::ParameterList> & params=Teuchos::null);
 
@@ -261,12 +257,6 @@ public:
   /// \param intensities the new intensity value array
   void replace_intensities(Teuchos::ArrayRCP<intensity_t> intensities);
 
-  /// interpolate intensity and gradients
-  void interpolate_keys_fourth_all(intensity_t& intensity_val,
-       scalar_t& grad_x_val, scalar_t& grad_y_val, const bool compute_gradient,
-       const scalar_t& local_x, const scalar_t& local_y);
-
-
   /// interpolant
   /// \param global_x global image coordinate x
   /// \param global_y global image coordinate y
@@ -301,11 +291,6 @@ public:
     return interpolate_bilinear(global_x-offset_x_,global_y-offset_y_);
   }
 
-  /// interpolate intensity and gradients
-  void interpolate_bilinear_all(intensity_t& intensity_val,
-       scalar_t& grad_x_val, scalar_t& grad_y_val, const bool compute_gradient,
-       const scalar_t& local_x, const scalar_t& local_y);
-
   /// interpolant
   /// \param local_x local image coordinate x
   /// \param local_y local image coordinate y
@@ -331,11 +316,6 @@ public:
     const scalar_t & global_y){
     return interpolate_bicubic(global_x-offset_x_,global_y-offset_y_);
   }
-
-  /// interpolate intensity and gradients
-  void interpolate_bicubic_all(intensity_t& intensity_val,
-       scalar_t& grad_x_val, scalar_t& grad_y_val, const bool compute_gradient,
-       const scalar_t& local_x, const scalar_t& local_y);
 
   /// interpolant
   /// \param local_x local image coordinate x
@@ -465,11 +445,6 @@ public:
   /// filter the image using a 7 point gauss filter
   void gauss_filter(const int_t mask_size=-1,const bool use_hierarchical_parallelism=false,
     const int_t team_size=256);
-
-  /// sets the file name of the image
-  void set_file_name(const std::string & file_name) {
-    file_name_ = file_name;
-  }
 
   /// returns the name of the file if available
   std::string file_name()const{

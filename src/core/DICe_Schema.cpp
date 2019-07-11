@@ -181,19 +181,13 @@ Schema::set_def_image(const std::string & defName,
     DEBUG_MSG("Setting the deformed image using extents x: " << offset_x << " to " << end_x << " y: " << offset_y << " to " << end_y);
     def_imgs_[id] = Teuchos::rcp( new Image(defName.c_str(),offset_x,offset_y,width,height,imgParams));
   }
-  else{
-    // see if the image has already been allocated:
-    if(def_imgs_[id]==Teuchos::null)
-      def_imgs_[id] = Teuchos::rcp( new Image(defName.c_str(),imgParams));
-    else
-      def_imgs_[id]->update_image_fields(defName.c_str(),imgParams);
-  }
+  else
+    def_imgs_[id] = Teuchos::rcp( new Image(defName.c_str(),imgParams));
   //TEUCHOS_TEST_FOR_EXCEPTION(def_imgs_[id]->width()!=ref_img_->width()||def_imgs_[id]->height()!=ref_img_->height(),
   //  std::runtime_error,"Error, ref and def images must have the same dimensions");
   if(def_image_rotation_!=ZERO_DEGREES){
     def_imgs_[id] = def_imgs_[id]->apply_rotation(def_image_rotation_);
   }
-  def_imgs_[id]->set_file_name(defName);
 }
 
 void
@@ -359,7 +353,6 @@ Schema::default_constructor_tasks(const Teuchos::RCP<Teuchos::ParameterList> & p
   use_incremental_formulation_ = false;
   use_nonlinear_projection_ = false;
   sort_txt_output_ = false;
-  threshold_block_size_ = -1;
   set_params(params);
   prev_imgs_.push_back(Teuchos::null);
   def_imgs_.push_back(Teuchos::null);
@@ -463,11 +456,6 @@ Schema::set_params(const Teuchos::RCP<Teuchos::ParameterList> & params){
         }
         // catch the output folder and output prefix sent to schema for exodus output
         if(it->first==output_folder||it->first==output_prefix){
-          diceParams->setEntry(it->first,it->second); // overwrite the default value with argument param specified values
-          paramValid = true;
-        }
-        // catch the camera system file sent to schema for camera-based shape functions like the rigid body one
-        if(it->first==camera_system_file){
           diceParams->setEntry(it->first,it->second); // overwrite the default value with argument param specified values
           paramValid = true;
         }
@@ -584,9 +572,6 @@ Schema::set_params(const Teuchos::RCP<Teuchos::ParameterList> & params){
   levenberg_marquardt_regularization_factor_ = diceParams->get<double>(DICe::levenberg_marquardt_regularization_factor);
   TEUCHOS_TEST_FOR_EXCEPTION(!diceParams->isParameter(DICe::output_beta),std::runtime_error,"");
   output_beta_ = diceParams->get<bool>(DICe::output_beta);
-  TEUCHOS_TEST_FOR_EXCEPTION(!diceParams->isParameter(DICe::write_exodus_output),std::runtime_error,"");
-  write_exodus_output_ = diceParams->get<bool>(DICe::write_exodus_output);
-  threshold_block_size_ = diceParams->get<int>(DICe::threshold_block_size,-1);
   TEUCHOS_TEST_FOR_EXCEPTION(!diceParams->isParameter(DICe::use_search_initialization_for_failed_steps),std::runtime_error,"");
   use_search_initialization_for_failed_steps_ = diceParams->get<bool>(DICe::use_search_initialization_for_failed_steps);
   TEUCHOS_TEST_FOR_EXCEPTION(!diceParams->isParameter(DICe::normalize_gamma_with_active_pixels),std::runtime_error,"");
@@ -819,10 +804,6 @@ Schema::initialize(const Teuchos::RCP<Teuchos::ParameterList> & input_params,
   const std::string output_prefix = input_params->get<std::string>(DICe::output_prefix,"DICe_solution");
   init_params_->set(DICe::output_prefix,output_prefix);
   init_params_->set(DICe::output_folder,output_folder);
-  if(input_params->isParameter(DICe::camera_system_file)){
-    const std::string camera_sys_file = input_params->get<std::string>(DICe::camera_system_file);
-    init_params_->set(DICe::camera_system_file,camera_sys_file);
-  }
 
   if(analysis_type_==GLOBAL_DIC){
     // create the computational mesh:
@@ -1047,7 +1028,7 @@ Schema::initialize(const Teuchos::RCP<Teuchos::ParameterList> & input_params,
   else
     exo_name << "DICe_solution_stereo.e";
   // dummy arrays
-  std::vector<std::pair<int_t,int_t> > dirichlet_boundary_nodes;
+  std::vector<std::pair<int_t,int_t>> dirichlet_boundary_nodes;
   std::set<int_t> neumann_boundary_nodes;
   std::set<int_t> lagrange_boundary_nodes;
 
@@ -1171,7 +1152,7 @@ Schema::create_mesh(Teuchos::RCP<Decomp> decomp){
     exo_name << "DICe_solution.e";
 
   // dummy arrays
-  std::vector<std::pair<int_t,int_t> > dirichlet_boundary_nodes;
+  std::vector<std::pair<int_t,int_t>> dirichlet_boundary_nodes;
   std::set<int_t> neumann_boundary_nodes;
   std::set<int_t> lagrange_boundary_nodes;
   mesh_ = DICe::mesh::create_point_or_tri_mesh(DICe::mesh::MESHLESS,
@@ -1339,7 +1320,7 @@ Schema::execute_cross_correlation(){
       try{
         obj = Teuchos::rcp(new Objective_ZNSSD(this,subset_global_id(subset_index)));
       }
-      catch(...){
+      catch(std::exception & e){
         init_success = false;
       }
       if(init_success){
@@ -1375,9 +1356,9 @@ Schema::execute_cross_correlation(){
       Teuchos::RCP<Objective> obj = Teuchos::rcp(new Objective_ZNSSD(this,this_proc_gid_order_[subset_index]));
       generic_correlation_routine(obj);
     }
-    catch(...){
+    catch(std::exception & e){
       DEBUG_MSG("Schema::execute_cross_correlation(): subset " << this_proc_gid_order_[subset_index] << " failed");
-      record_failed_step(this_proc_gid_order_[subset_index],static_cast<int_t>(CORRELATION_FAILED_BY_EXCEPTION),-1);
+      record_failed_step(this_proc_gid_order_[subset_index],static_cast<int_t>(INITIALIZE_FAILED_BY_EXCEPTION),-1);
     }
   }
   // check the percentage of successful subsets:
@@ -1509,7 +1490,7 @@ Schema::execute_correlation(){
         DEBUG_MSG("Schema::execute_correlation(): Objective creation successful");
         generic_correlation_routine(obj);
       }
-      catch(...){
+      catch(std::exception & e){
         DEBUG_MSG("Schema::execute_correlation(): subset " << this_proc_gid_order_[subset_index] << " failed");
         record_failed_step(this_proc_gid_order_[subset_index],static_cast<int_t>(INITIALIZE_FAILED_BY_EXCEPTION),-1);
       }
@@ -1635,11 +1616,7 @@ Schema::prepare_optimization_initializers(){
   }
   else if(initialization_method_==USE_FEATURE_MATCHING){
     DEBUG_MSG("Default initializer is feature matching initializer");
-    default_initializer = Teuchos::rcp(new Feature_Matching_Initializer(this,threshold_block_size_));
-  }
-  else if(initialization_method_==USE_IMAGE_REGISTRATION){
-    DEBUG_MSG("Default initializer is image registration initializer");
-    default_initializer = Teuchos::rcp(new Image_Registration_Initializer(this));
+    default_initializer = Teuchos::rcp(new Feature_Matching_Initializer(this));
   }
   else if(initialization_method_==USE_OPTICAL_FLOW){
     // make syre tga the correlation routine is tracking routine
@@ -1736,7 +1713,7 @@ void
 Schema::record_failed_step(const int_t subset_gid,
   const int_t status,
   const int_t num_iterations){
-  DEBUG_MSG("Subset " << subset_gid << " record failed step, status: " << status);
+  DEBUG_MSG("Subset " << subset_gid << " record failed step");
   global_field_value(subset_gid,SIGMA_FS) = -1.0;
   global_field_value(subset_gid,MATCH_FS) = -1.0;
   global_field_value(subset_gid,GAMMA_FS) = -1.0;
@@ -1848,7 +1825,7 @@ Schema::generic_correlation_routine(Teuchos::RCP<Objective> obj){
   try{
     init_status = initial_guess(subset_gid,shape_function);
   }
-  catch (...) { // a non-graceful exception occurred in initialization
+  catch (std::logic_error &err) { // a non-graceful exception occurred in initialization
     record_failed_step(subset_gid,static_cast<int_t>(INITIALIZE_FAILED_BY_EXCEPTION),num_iterations);
     return;
   };
@@ -1858,8 +1835,6 @@ Schema::generic_correlation_routine(Teuchos::RCP<Objective> obj){
   if(init_status==INITIALIZE_FAILED){
     // try again with a search initializer
     if(correlation_routine_==TRACKING_ROUTINE && use_search_initialization_for_failed_steps_){
-      TEUCHOS_TEST_FOR_EXCEPTION(shape_function_type_==DICe::RIGID_BODY_SF,std::runtime_error,
-        "error, cannot use search initialization with rigid body shape function");
       stat_container_->register_search_call(subset_gid,frame_id_);
       // before giving up, try a search initialization, then simplex, then give up if it still can't track:
       const scalar_t search_step_xy = 1.0; // pixels
@@ -1960,7 +1935,7 @@ Schema::generic_correlation_routine(Teuchos::RCP<Objective> obj){
     try{
       corr_status = obj->computeUpdateRobust(shape_function,num_iterations);
     }
-    catch (...) { //a non-graceful exception occurred
+    catch (std::logic_error &err) { //a non-graceful exception occurred
       corr_status = CORRELATION_FAILED_BY_EXCEPTION;
     };
   }
@@ -1969,7 +1944,7 @@ Schema::generic_correlation_routine(Teuchos::RCP<Objective> obj){
     try{
       corr_status = obj->computeUpdateFast(shape_function,num_iterations);
     }
-    catch (...) { //a non-graceful exception occurred
+    catch (std::logic_error &err) { //a non-graceful exception occurred
       corr_status = CORRELATION_FAILED_BY_EXCEPTION;
     };
   }
@@ -2003,7 +1978,7 @@ Schema::generic_correlation_routine(Teuchos::RCP<Objective> obj){
         try{
           corr_status = obj->computeUpdateRobust(shape_function,num_iterations);
         }
-        catch (...) { //a non-graceful exception occurred
+        catch (std::logic_error &err) { //a non-graceful exception occurred
           corr_status = CORRELATION_FAILED_BY_EXCEPTION;
         };
       }
@@ -2020,7 +1995,7 @@ Schema::generic_correlation_routine(Teuchos::RCP<Objective> obj){
         try{
           corr_status = obj->computeUpdateFast(shape_function,num_iterations);
         }
-        catch (...) { //a non-graceful exception occurred
+        catch (std::logic_error &err) { //a non-graceful exception occurred
           corr_status = CORRELATION_FAILED_BY_EXCEPTION;
         };
       } // end gradient then search
@@ -2034,7 +2009,7 @@ Schema::generic_correlation_routine(Teuchos::RCP<Objective> obj){
       try{
           corr_status = obj->computeUpdateFast(shape_function,num_iterations);
       }
-      catch (...) { //a non-graceful exception occurred
+      catch (std::logic_error &err) { //a non-graceful exception occurred
         corr_status = CORRELATION_FAILED_BY_EXCEPTION;
       };
       if(corr_status!=CORRELATION_SUCCESSFUL){
@@ -2708,52 +2683,8 @@ Schema::initialize_cross_correlation(Teuchos::RCP<Triangulation> tri,
 }
 
 int_t
-Schema::execute_triangulation(Teuchos::RCP<Triangulation> tri){
-  Teuchos::RCP<MultiField> disp_x = mesh_->get_field(SUBSET_DISPLACEMENT_X_FS);
-  Teuchos::RCP<MultiField> disp_y = mesh_->get_field(SUBSET_DISPLACEMENT_Y_FS);
-  // for all the failed points, average the nearest neighbor result so that the plotting
-  // doesn't get ruined, but still record a -1 for sigma and match fields
-  Teuchos::RCP<MultiField> sigma = mesh_->get_field(SIGMA_FS);
-  Teuchos::RCP<MultiField> match = mesh_->get_field(MATCH_FS);
-  // make sure the stereo coords fields are populated
-  Teuchos::RCP<MultiField> coords_x = mesh_->get_field(SUBSET_COORDINATES_X_FS);
-  Teuchos::RCP<MultiField> coords_y = mesh_->get_field(SUBSET_COORDINATES_Y_FS);
-  Teuchos::RCP<MultiField> model_x = mesh_->get_field(MODEL_COORDINATES_X_FS);
-  Teuchos::RCP<MultiField> model_y = mesh_->get_field(MODEL_COORDINATES_Y_FS);
-  Teuchos::RCP<MultiField> model_z = mesh_->get_field(MODEL_COORDINATES_Z_FS);
-  Teuchos::RCP<MultiField> model_disp_x = mesh_->get_field(MODEL_DISPLACEMENT_X_FS);
-  Teuchos::RCP<MultiField> model_disp_y = mesh_->get_field(MODEL_DISPLACEMENT_Y_FS);
-  Teuchos::RCP<MultiField> model_disp_z = mesh_->get_field(MODEL_DISPLACEMENT_Z_FS);
-  std::vector<scalar_t> world_x(local_num_subsets_,0.0);
-  std::vector<scalar_t> world_y(local_num_subsets_,0.0);
-  std::vector<scalar_t> world_z(local_num_subsets_,0.0);
-  std::vector<scalar_t> img_x(local_num_subsets_,0.0);
-  std::vector<scalar_t> img_y(local_num_subsets_,0.0);
-  for(int_t i=0;i<local_num_subsets_;++i){
-    img_x[i] = coords_x->local_value(i) + disp_x->local_value(i);
-    img_y[i] = coords_y->local_value(i) + disp_y->local_value(i);
-  }
-  tri->triangulate(img_x,img_y,world_x,world_y,world_z);
-  for(int_t i=0;i<local_num_subsets_;++i){
-    if(frame_id_==first_frame_id_){
-      model_x->local_value(i) = world_x[i];
-      model_y->local_value(i) = world_y[i];
-      model_z->local_value(i) = world_z[i];
-    }
-    else{
-      model_disp_x->local_value(i) = world_x[i] - model_x->local_value(i);
-      model_disp_y->local_value(i) = world_y[i] - model_y->local_value(i);
-      model_disp_z->local_value(i) = world_z[i] - model_z->local_value(i);
-    }
-  }
-  return 0;
-}
-
-int_t
 Schema::execute_triangulation(Teuchos::RCP<Triangulation> tri,
   Teuchos::RCP<Schema> right_schema){
-  if(tri==Teuchos::null) return 0;
-  if(right_schema==Teuchos::null) return execute_triangulation(tri);
   TEUCHOS_TEST_FOR_EXCEPTION(right_schema==Teuchos::null,std::runtime_error,"");
   TEUCHOS_TEST_FOR_EXCEPTION(right_schema->local_num_subsets()!=local_num_subsets_,std::runtime_error,
     "Error, incompatible schemas: left number of subsets " << local_num_subsets_ << " right " << right_schema->local_num_subsets());
@@ -2882,7 +2813,7 @@ Schema::execute_triangulation(Teuchos::RCP<Triangulation> tri,
     if(f.good()){
       best_fit = true;
       DEBUG_MSG("Schema::execute_triangulation(): clearing the trans_extrinsics_ values");
-      tri->reset_cam_0_to_world();
+      tri->clear_trans_extrinsics();
     }
   }
   for(int_t i=0;i<local_num_subsets_;++i){
@@ -3008,16 +2939,14 @@ Schema::write_output(const std::string & output_folder,
   int_t proc_size = comm_->get_size();
 
 #ifdef DICE_ENABLE_GLOBAL // global is enabled doesn't mean the analysis is global DIC it just means exodus is available as an output format
-  if (write_exodus_output_) {
-    if(frame_id_==first_frame_id_+1){
-      std::string output_dir= "";
-      if(init_params_!=Teuchos::null)
-        output_dir = init_params_->get<std::string>(DICe::output_folder,"");
-      DICe::mesh::create_output_exodus_file(mesh_,output_dir);
-      DICe::mesh::create_exodus_output_variable_names(mesh_);
-    }
-    DICe::mesh::exodus_output_dump(mesh_,frame_id_-first_frame_id_,frame_id_-first_frame_id_);
+  if(frame_id_==first_frame_id_+1){
+    std::string output_dir= "";
+    if(init_params_!=Teuchos::null)
+      output_dir = init_params_->get<std::string>(DICe::output_folder,"");
+    DICe::mesh::create_output_exodus_file(mesh_,output_dir);
+    DICe::mesh::create_exodus_output_variable_names(mesh_);
   }
+  DICe::mesh::exodus_output_dump(mesh_,frame_id_-first_frame_id_,frame_id_-first_frame_id_);
 #endif
 
   if(no_text_output) return;
@@ -3451,7 +3380,7 @@ Output_Spec::gather_fields(){
     try{
       fs = schema_->mesh()->get_field_spec(field_names_[i]);
     }
-    catch(...){
+    catch(std::exception & e){
     }
     field_vec_[i] = schema_->mesh()->get_field(fs);
   }
@@ -3484,11 +3413,7 @@ Output_Spec::write_info(std::FILE * file,
   fprintf(file,"*** Shape functions: ");
   if(schema_->shape_function_type()==DICe::QUADRATIC_SF){
     fprintf(file,"quadratic (A,B,C,D,E,F,G,H,I,J,K,L)");
-  }
-//	else if(schema_->profile_shape_function_enabled()) {
-//		fprintf(file, "profile (Z, PHI, THETA)");
-//	}
-	else{
+  }else{
     if(schema_->translation_enabled())
       fprintf(file,"Translation (u,v) ");
     if(schema_->rotation_enabled())

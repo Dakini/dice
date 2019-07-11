@@ -41,7 +41,6 @@
 
 #include <DICe_Parser.h>
 #include <DICe_XMLUtils.h>
-
 #include <DICe_ParameterUtilities.h>
 #include <DICe.h>
 #include <DICe_Cine.h>
@@ -57,6 +56,7 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+
 #if DICE_MPI
 #  include <mpi.h>
 #endif
@@ -689,35 +689,9 @@ void decipher_image_file_names(Teuchos::RCP<Teuchos::ParameterList> params,
     int_t imageSkip = 1;
     if(params->isParameter(DICe::skip_image_index))
       imageSkip = params->get<int_t>(DICe::skip_image_index);
-
-    // single camera only has a prefix
-    // stereo can have a prefix with left and right suffix or left and right prefix with no suffix
-    const bool has_prefix = params->isParameter(DICe::image_file_prefix);
-    std::string file_suffix = params->get<std::string>(DICe::file_suffix,"");
-    const bool has_stereo_prefix = params->isParameter(DICe::stereo_left_file_prefix) &&
-        params->isParameter(DICe::stereo_left_file_prefix);
-    TEUCHOS_TEST_FOR_EXCEPTION(!has_prefix&&!has_stereo_prefix,std::runtime_error,
-      "either the image_file_prefix or stereo_left_file_prefix\n"
-        " and stereo_right_file_prefix parameters must be set");
-    TEUCHOS_TEST_FOR_EXCEPTION(has_prefix&&has_stereo_prefix,std::runtime_error,"");
-    const bool has_stereo_suffix = params->isParameter(DICe::stereo_left_suffix) &&
-        params->isParameter(DICe::stereo_right_suffix);
-    TEUCHOS_TEST_FOR_EXCEPTION(has_stereo_suffix&&has_stereo_prefix,std::runtime_error,
-      "stereo files are indicated with a prefix or a suffix, not both");
-    const bool is_stereo = has_stereo_prefix || has_stereo_suffix;
-    std::string left_prefix="", right_prefix="";
-    if(has_prefix){
-      left_prefix = params->get<std::string>(DICe::image_file_prefix);
-      right_prefix = left_prefix;
-    }else{
-      left_prefix = params->get<std::string>(DICe::stereo_left_file_prefix);
-      right_prefix = params->get<std::string>(DICe::stereo_right_file_prefix);
-    }
-    std::string left_suffix="", right_suffix="";
-    if(has_stereo_suffix){
-      left_suffix = params->get<std::string>(DICe::stereo_left_suffix);
-      right_suffix = params->get<std::string>(DICe::stereo_right_suffix);
-    }
+    TEUCHOS_TEST_FOR_EXCEPTION(!params->isParameter(DICe::image_file_prefix),std::runtime_error,
+      "Error, the image file prefix was not specified");
+    const std::string prefix = params->get<std::string>(DICe::image_file_prefix);
     TEUCHOS_TEST_FOR_EXCEPTION(!params->isParameter(DICe::image_file_extension),std::runtime_error,
       "Error, the image file extension was not specified");
     const std::string fileType = params->get<std::string>(DICe::image_file_extension);
@@ -729,6 +703,7 @@ void decipher_image_file_names(Teuchos::RCP<Teuchos::ParameterList> params,
       "Error, the reference image index was not specified");
     const int_t refId = params->get<int_t>(DICe::reference_image_index);
     TEUCHOS_TEST_FOR_EXCEPTION(lastImageIndex < refId,std::runtime_error,"Error invalid reference image index");
+
     int_t startImageIndex = refId;
     if(params->isParameter(DICe::start_image_index)){
       startImageIndex = params->get<int_t>(DICe::start_image_index);
@@ -737,6 +712,15 @@ void decipher_image_file_names(Teuchos::RCP<Teuchos::ParameterList> params,
     TEUCHOS_TEST_FOR_EXCEPTION(startImageIndex < 0,std::runtime_error,"Error invalid start image index");
     const int_t numImages = std::floor((lastImageIndex - startImageIndex)/imageSkip) + 1;
     TEUCHOS_TEST_FOR_EXCEPTION(numImages<=0,std::runtime_error,"");
+    std::string stereo_left_suffix = "";
+    std::string stereo_right_suffix = "";
+    const bool is_stereo = params->isParameter(DICe::stereo_left_suffix) || params->isParameter(DICe::stereo_right_suffix);
+    if(is_stereo){
+      TEUCHOS_TEST_FOR_EXCEPTION(!params->isParameter(DICe::stereo_left_suffix),std::runtime_error,"Error, for stereo the stereo_left_suffix parameter must be set");
+      TEUCHOS_TEST_FOR_EXCEPTION(!params->isParameter(DICe::stereo_right_suffix),std::runtime_error,"Error, for stereo the stereo_right_suffix parameter must be set");
+      stereo_left_suffix = params->get<std::string>(DICe::stereo_left_suffix);
+      stereo_right_suffix = params->get<std::string>(DICe::stereo_right_suffix);
+    }
 
     // determine the reference image
     int_t number = refId;
@@ -746,27 +730,27 @@ void decipher_image_file_names(Teuchos::RCP<Teuchos::ParameterList> params,
     else{
       while (number) {number /= 10; refDig++;}
     }
-    std::stringstream left_ref_name, right_ref_name;
-    left_ref_name << folder << left_prefix;
-    right_ref_name << folder << right_prefix;
+    std::stringstream ref_name;
+    ref_name << folder << prefix;
     if(digits > 1){
-      for(int_t i=0;i<digits - refDig;++i){
-        left_ref_name << "0";
-        right_ref_name << "0";
-      }
+      for(int_t i=0;i<digits - refDig;++i) ref_name << "0";
     }
-    left_ref_name << refId << left_suffix << file_suffix << fileType;
-    right_ref_name << refId << right_suffix << file_suffix << fileType;
-    image_files.push_back(left_ref_name.str());
+    ref_name << refId << stereo_left_suffix << fileType;
+    image_files.push_back(ref_name.str());
     if(is_stereo){
-      stereo_image_files.push_back(right_ref_name.str());
+      std::stringstream stereo_ref_name;
+      stereo_ref_name << folder << prefix;
+      if(digits > 1){
+        for(int_t i=0;i<digits - refDig;++i) stereo_ref_name << "0";
+      }
+      stereo_ref_name << refId << stereo_right_suffix << fileType;
+      stereo_image_files.push_back(stereo_ref_name.str());
     }
 
     // determine the deformed images
     for(int_t i=startImageIndex;i<=lastImageIndex;i+=imageSkip){
-      std::stringstream left_def_name, right_def_name;
-      left_def_name << folder << left_prefix;
-      right_def_name << folder << right_prefix;
+      std::stringstream def_name;
+      def_name << folder << prefix;
       int_t tmpNum = i;
       int_t defDig = 0;
       if(tmpNum==0)
@@ -775,32 +759,21 @@ void decipher_image_file_names(Teuchos::RCP<Teuchos::ParameterList> params,
         while (tmpNum) {tmpNum /= 10; defDig++;}
       }
       if(digits > 1)
-        for(int_t j=0;j<digits - defDig;++j){
-          left_def_name << "0";
-          right_def_name << "0";
-        }
-      left_def_name << i << left_suffix << file_suffix << fileType;
-      right_def_name << i << right_suffix << file_suffix << fileType;
-      image_files.push_back(left_def_name.str());
+        for(int_t j=0;j<digits - defDig;++j) def_name << "0";
+      def_name << i << stereo_left_suffix << fileType;
+      image_files.push_back(def_name.str());
       if(is_stereo){
-        stereo_image_files.push_back(right_def_name.str());
+        std::stringstream stereo_def_name;
+        stereo_def_name << folder << prefix;
+        if(digits > 1)
+          for(int_t j=0;j<digits - defDig;++j) stereo_def_name << "0";
+        stereo_def_name << i << stereo_right_suffix << fileType;
+        stereo_image_files.push_back(stereo_def_name.str());
       }
     }
     TEUCHOS_TEST_FOR_EXCEPTION(is_stereo && image_files.size()!=stereo_image_files.size(),std::runtime_error,"");
   }
   TEUCHOS_TEST_FOR_EXCEPTION(image_files.size()<=1,std::runtime_error,"");
-}
-
-/// returns a string with only the name, no extension or directory
-DICE_LIB_DLL_EXPORT
-std::string file_name_no_dir_or_extension(const std::string & file_name) {
-  size_t lastindex = file_name.find_last_of(".");
-  size_t last_slash_index = file_name.find_last_of("/");
-  if(last_slash_index==std::string::npos)
-    last_slash_index = file_name.find_last_of("\\");
-  if(last_slash_index==std::string::npos)
-    last_slash_index = -1;
-  return file_name.substr(last_slash_index+1, lastindex-last_slash_index-1);
 }
 
 DICE_LIB_DLL_EXPORT
@@ -1538,7 +1511,7 @@ const Teuchos::RCP<Subset_File_Info> read_subset_file(const std::string & fileNa
          if(use_optical_flow)
            info->optical_flow_flags->insert(std::pair<int_t,bool>(subset_id,true));
          if(skip_solve)
-           info->skip_solve_flags->insert(std::pair<int_t,std::vector<int> >(subset_id,skip_solve_ids));
+           info->skip_solve_flags->insert(std::pair<int_t,std::vector<int>>(subset_id,skip_solve_ids));
          if(test_for_motion){ // make sure if motion detection is on, there is a corresponding motion window
            TEUCHOS_TEST_FOR_EXCEPTION(!has_motion_window,std::runtime_error,"Error, cannot test for motion without defining a motion window for subset " << subset_id);
          }

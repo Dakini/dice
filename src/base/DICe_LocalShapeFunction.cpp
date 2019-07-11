@@ -54,9 +54,6 @@ Teuchos::RCP<Local_Shape_Function> shape_function_factory(Schema * schema){
     return Teuchos::rcp(new Affine_Shape_Function(schema));
   }else if(schema->shape_function_type()==DICe::QUADRATIC_SF){
     return Teuchos::rcp(new Quadratic_Shape_Function());
-  }else if(schema->shape_function_type()==DICe::RIGID_BODY_SF){
-    TEUCHOS_TEST_FOR_EXCEPTION(!schema->get_params()->isParameter(DICe::camera_system_file),std::runtime_error,"");
-    return Teuchos::rcp(new Rigid_Body_Shape_Function(schema->get_params()->get<std::string>(DICe::camera_system_file)));
   }else{
     TEUCHOS_TEST_FOR_EXCEPTION(true,std::runtime_error,"Error, invalid shape function type");
   }
@@ -184,29 +181,6 @@ Affine_Shape_Function::init(const bool enable_rotation,
     deltas_[i] = delta_theta;
   deltas_[spec_map_.find(SUBSET_DISPLACEMENT_X_FS)->second] = delta_disp;
   deltas_[spec_map_.find(SUBSET_DISPLACEMENT_Y_FS)->second] = delta_disp;
-  // set the residual indicies
-  if(spec_map_.find(SUBSET_DISPLACEMENT_X_FS)!=spec_map_.end()) {
-    dx_ind_ = spec_map_.find(SUBSET_DISPLACEMENT_X_FS)->second;
-  }
-  if(spec_map_.find(SUBSET_DISPLACEMENT_Y_FS)!=spec_map_.end()) {
-    dy_ind_ = spec_map_.find(SUBSET_DISPLACEMENT_Y_FS)->second;
-  }
-  if(spec_map_.find(ROTATION_Z_FS)!=spec_map_.end()) {
-    has_rotz_ = true;
-    rotz_ind_ = spec_map_.find(ROTATION_Z_FS)->second;
-  }
-  if(spec_map_.find(NORMAL_STRETCH_XX_FS)!=spec_map_.end()) {
-    has_nsxx_ = true;
-    nsxx_ind_ = spec_map_.find(NORMAL_STRETCH_XX_FS)->second;
-  }
-  if(spec_map_.find(NORMAL_STRETCH_YY_FS)!=spec_map_.end()) {
-    has_nsyy_ = true;
-    nsyy_ind_ = spec_map_.find(NORMAL_STRETCH_YY_FS)->second;
-  }
-  if(spec_map_.find(SHEAR_STRETCH_XY_FS)!=spec_map_.end()) {
-    has_ssxy_ = true;
-    ssxy_ind_ = spec_map_.find(SHEAR_STRETCH_XY_FS)->second;
-  }
 }
 
 void
@@ -219,23 +193,17 @@ Affine_Shape_Function::map(const scalar_t & x,
 
   static scalar_t dx=0.0,dy=0.0;
   static scalar_t Dx=0.0,Dy=0.0;
-  static scalar_t dispx=0.0,dispy=0.0,theta=0.0,dudx=0.0,dvdy=0.0,gxy=0.0;
-  static scalar_t cost=0.0,sint=0.0;
-
-  dispx = parameters_[dx_ind_];
-  dispy = parameters_[dy_ind_];
-  theta = has_rotz_ ? parameters_[rotz_ind_] : 0.0;
-  dudx  = has_nsxx_ ? parameters_[nsxx_ind_] : 0.0;
-  dvdy  = has_nsyy_ ? parameters_[nsyy_ind_] : 0.0;
-  gxy   = has_ssxy_ ? parameters_[ssxy_ind_] : 0.0;
-  cost = cos(theta);
-  sint = sin(theta);  dx = x - cx;
+  static scalar_t cost;
+  static scalar_t sint;
+  cost = std::cos(parameter(ROTATION_Z_FS));
+  sint = std::sin(parameter(ROTATION_Z_FS));
+  dx = x - cx;
   dy = y - cy;
-  Dx = (1.0+dudx)*dx + gxy*dy;
-  Dy = (1.0+dvdy)*dy + gxy*dx;
+  Dx = (1.0+parameter(NORMAL_STRETCH_XX_FS))*dx + parameter(SHEAR_STRETCH_XY_FS)*dy;
+  Dy = (1.0+parameter(NORMAL_STRETCH_YY_FS))*dy + parameter(SHEAR_STRETCH_XY_FS)*dx;
   // mapped location
-  out_x = cost*Dx - sint*Dy + dispx + cx;
-  out_y = sint*Dx + cost*Dy + dispy + cy;
+  out_x = cost*Dx - sint*Dy + parameter(SUBSET_DISPLACEMENT_X_FS) + cx;
+  out_y = sint*Dx + cost*Dy + parameter(SUBSET_DISPLACEMENT_Y_FS) + cy;
 }
 
 //FIXME make these check the field exists rather than if the schema has them enabled
@@ -352,10 +320,10 @@ Affine_Shape_Function::residuals(const scalar_t & x,
   static scalar_t dx=0.0,dy=0.0,Dx=0.0,Dy=0.0,delTheta=0.0,delEx=0.0,delEy=0.0,delGxy=0.0;
   static scalar_t Gx=0.0,Gy=0.0;
   static scalar_t theta=0.0,dudx=0.0,dvdy=0.0,gxy=0.0,cosTheta=0.0,sinTheta=0.0;
-  theta = has_rotz_ ? parameters_[rotz_ind_] : 0.0;
-  dudx  = has_nsxx_ ? parameters_[nsxx_ind_] : 0.0;
-  dvdy  = has_nsyy_ ? parameters_[nsyy_ind_] : 0.0;
-  gxy   = has_ssxy_ ? parameters_[ssxy_ind_] : 0.0;
+  theta = parameter(ROTATION_Z_FS);
+  dudx  = parameter(NORMAL_STRETCH_XX_FS);
+  dvdy  = parameter(NORMAL_STRETCH_YY_FS);
+  gxy   = parameter(SHEAR_STRETCH_XY_FS);
   cosTheta = std::cos(theta);
   sinTheta = std::sin(theta);
 
@@ -372,18 +340,18 @@ Affine_Shape_Function::residuals(const scalar_t & x,
   delEy = -Gx*dy*sinTheta + Gy*dy*cosTheta;
   delGxy = Gx*(cosTheta*dy - sinTheta*dx) + Gy*(sinTheta*dy + cosTheta*dx);
 
-  //if (has_dx)
-  residuals[dx_ind_] = Gx;
-  //if (has_dy)
-  residuals[dy_ind_] = Gy;
-  if (has_rotz_)
-    residuals[rotz_ind_] = delTheta;
-  if (has_nsxx_)
-    residuals[nsxx_ind_] = delEx;
-  if (has_nsyy_)
-    residuals[nsyy_ind_] = delEy;
-  if (has_ssxy_)
-    residuals[ssxy_ind_] = delGxy;
+  if(spec_map_.find(SUBSET_DISPLACEMENT_X_FS)!=spec_map_.end())
+    residuals[spec_map_.find(SUBSET_DISPLACEMENT_X_FS)->second] = Gx;
+  if(spec_map_.find(SUBSET_DISPLACEMENT_Y_FS)!=spec_map_.end())
+    residuals[spec_map_.find(SUBSET_DISPLACEMENT_Y_FS)->second] = Gy;
+  if(spec_map_.find(ROTATION_Z_FS)!=spec_map_.end())
+    residuals[spec_map_.find(ROTATION_Z_FS)->second] = delTheta;
+  if(spec_map_.find(NORMAL_STRETCH_XX_FS)!=spec_map_.end())
+    residuals[spec_map_.find(NORMAL_STRETCH_XX_FS)->second] = delEx;
+  if(spec_map_.find(NORMAL_STRETCH_YY_FS)!=spec_map_.end())
+    residuals[spec_map_.find(NORMAL_STRETCH_YY_FS)->second] = delEy;
+  if(spec_map_.find(SHEAR_STRETCH_XY_FS)!=spec_map_.end())
+    residuals[spec_map_.find(SHEAR_STRETCH_XY_FS)->second] = delGxy;
 }
 
 
@@ -607,218 +575,155 @@ Quadratic_Shape_Function::update_params_for_centroid_change(const scalar_t & del
   (*this)(QUAD_L_FS) += G*delta_x + H*delta_y + I*delta_x*delta_y + J*delta_x*delta_x + K*delta_y*delta_y - delta_y;
 }
 
-Projection_Shape_Function::Projection_Shape_Function(const std::string & system_file,
-  const size_t source_camera_id,
-  const size_t target_camera_id):
-  Local_Shape_Function(),
-  source_cam_id_(source_camera_id),
-  target_cam_id_(target_camera_id),
-  camera_system_(Teuchos::rcp(new Camera_System(system_file))){
-  spec_map_.insert(std::pair<Field_Spec, size_t>(PROJECTION_Z_FS, spec_map_.size()));
-  spec_map_.insert(std::pair<Field_Spec, size_t>(PROJECTION_PHI_FS, spec_map_.size()));
-  spec_map_.insert(std::pair<Field_Spec, size_t>(PROJECTION_THETA_FS, spec_map_.size()));
-  num_params_ = spec_map_.size();
-  assert(num_params_ == 3);
-  parameters_.resize(num_params_);
-  deltas_.resize(num_params_);
-  // initialize the parameter values
-  clear();
-  // initialize the deltas:
-  deltas_[ZP] = 0.005;
-  deltas_[THETA] = 0.001;
-  deltas_[PHI] = 0.001;
-}
 
-void
-Projection_Shape_Function::clear() {
-  Local_Shape_Function::clear();
-  (*this)(PROJECTION_Z_FS) = 100.0;
-}
 
-void
-Projection_Shape_Function::reset_fields(Schema * schema) {
-  //difference between this and clear?
-  Local_Shape_Function::reset_fields(schema);
-  schema->mesh()->get_field(PROJECTION_Z_FS)->put_scalar(100.0);
-}
+// TODO for Affine map, remember to create a virtual function save_fields that calls Local_Shape_Function::save_fields() then sets rotation and displacement as is done below
 
-void
-Projection_Shape_Function::map(const scalar_t & x,
-  const scalar_t & y,
-  const scalar_t & cx,
-  const scalar_t & cy,
-  scalar_t & out_x,
-  scalar_t & out_y) {
-  const std::vector<scalar_t> source_x(1,x);
-  const std::vector<scalar_t> source_y(1,y);
-  // cx and cy are not used
-  std::vector<scalar_t> target_x(1,0);
-  std::vector<scalar_t> target_y(1,0);
-  camera_system_->camera_to_camera_projection(source_cam_id_,target_cam_id_,
-    source_x,source_y,target_x,target_y,parameters_);
-  out_x = target_x[0];
-  out_y = target_y[0];
-}
+//(*deltas)[DOF_A] = 0.0001;
+//(*deltas)[DOF_B] = 1.0E-5;
+//(*deltas)[DOF_C] = 1.0;
+//(*deltas)[DOF_D] = 1.0E-5;
+//(*deltas)[DOF_E] = 0.0001;
+//(*deltas)[DOF_F] = 1.0;
+//(*deltas)[DOF_G] = 1.0E-5;
+//(*deltas)[DOF_H] = 1.0E-5;
+//(*deltas)[DOF_I] = 1.0E-5;
 
-void
-Projection_Shape_Function::residuals(const scalar_t & x,
-  const scalar_t & y,
-  const scalar_t & cx,
-  const scalar_t & cy,
-  const scalar_t & gx,
-  const scalar_t & gy,
-  std::vector<scalar_t> & residuals,
-  const bool use_ref_grads) {
-  const std::vector<scalar_t> source_x(1,x);
-  const std::vector<scalar_t> source_y(1,y);
-  // cx and cy are not used
-  // the target x and y are not used, but computed as part of the mapping
-  std::vector<scalar_t> target_x(1,0);
-  std::vector<scalar_t> target_y(1,0);
-  std::vector<std::vector<scalar_t> > dx(num_params_,std::vector<scalar_t>(1,0));
-  std::vector<std::vector<scalar_t> > dy(num_params_,std::vector<scalar_t>(1,0));
-  camera_system_->camera_to_camera_projection(source_cam_id_,target_cam_id_,
-    source_x,source_y,target_x,target_y,parameters_,dx,dy);
+//global_field_value(subset_gid,AFFINE_A_FS) = (*deformation)[DOF_A];
+//global_field_value(subset_gid,AFFINE_B_FS) = (*deformation)[DOF_B];
+//global_field_value(subset_gid,AFFINE_C_FS) = (*deformation)[DOF_C];
+//global_field_value(subset_gid,AFFINE_D_FS) = (*deformation)[DOF_D];
+//global_field_value(subset_gid,AFFINE_E_FS) = (*deformation)[DOF_E];
+//global_field_value(subset_gid,AFFINE_F_FS) = (*deformation)[DOF_F];
+//global_field_value(subset_gid,AFFINE_G_FS) = (*deformation)[DOF_G];
+//global_field_value(subset_gid,AFFINE_H_FS) = (*deformation)[DOF_H];
+//global_field_value(subset_gid,AFFINE_I_FS) = (*deformation)[DOF_I];
+//const scalar_t x = global_field_value(subset_gid,SUBSET_COORDINATES_X_FS);
+//const scalar_t y = global_field_value(subset_gid,SUBSET_COORDINATES_Y_FS);
+//scalar_t u = 0.0,v=0.0,theta=0.0;
+//affine_map_to_motion(x,y,u,v,theta,deformation);
+//global_field_value(subset_gid,SUBSET_DISPLACEMENT_X_FS) = u;
+//global_field_value(subset_gid,SUBSET_DISPLACEMENT_Y_FS) = v;
+//global_field_value(subset_gid,ROTATION_Z_FS) = theta;
 
-  residuals[spec_map_.find(PROJECTION_Z_FS)->second] = gx * dx[ZP][0] + gy * dy[ZP][0];
-  residuals[spec_map_.find(PROJECTION_THETA_FS)->second] = gx * dx[THETA][0] + gy * dy[THETA][0];
-  residuals[spec_map_.find(PROJECTION_PHI_FS)->second] = gx *dx[PHI][0] + gy * dy[PHI][0];
-}
+//gx = gradGx[index];
+//gy = gradGy[index];
+//Gx = gx;
+//Gy = gy;
+//term_1 = (A*x+B*y+C);
+//term_2 = (D*x+E*y+F);
+//term_3 = (G*x+H*y+I);
+//TEUCHOS_TEST_FOR_EXCEPTION(term_3==0.0,std::runtime_error,"");
+//if(use_ref_grads){
+//  dwxdx = A/term_3 - G*term_1/(term_3*term_3);
+//  dwxdy = B/term_3 - H*term_1/(term_3*term_3);
+//  dwydx = D/term_3 - G*term_2/(term_3*term_3);
+//  dwydy = E/term_3 - H*term_2/(term_3*term_3);
+//  TEUCHOS_TEST_FOR_EXCEPTION(std::abs(dwxdx*dwydy - dwxdy*dwydx) < 1.0E-12,std::runtime_error,"Error, det(dwdx) is zero.");
+//  det_w = 1.0/(dwxdx*dwydy - dwxdy*dwydx);
+//  dwxdx_i = det_w * dwydy;
+//  dwxdy_i = -1.0 * det_w * dwxdy;
+//  dwydx_i = -1.0 * det_w * dwydx;
+//  dwydy_i = det_w * dwxdx;
+//  Gx = dwxdx_i*gx + dwxdy_i*gy;
+//  Gy = dwydx_i*gx + dwydy_i*gy;
+//}
+//resids[0] = Gx*x/term_3;
+//resids[1] = Gx*y/term_3;
+//resids[2] = Gx/term_3;
+//resids[3] = Gy*x/term_3;
+//resids[4] = Gy*y/term_3;
+//resids[5] = Gy/term_3;
+//resids[6] = -1.0*(Gx*term_1/(term_3*term_3) + Gy*term_2/(term_3*term_3))*x;
+//resids[7] = -1.0*(Gx*term_1/(term_3*term_3) + Gy*term_2/(term_3*term_3))*y;
+//resids[8] = -1.0*(Gx*term_1/(term_3*term_3) + Gy*term_2/(term_3*term_3));
+//for(int_t i=0;i<q.size();++i){
+//  q[i] += GmF*resids[i];
+//  for(int_t j=0;j<q.size();++j)
+//    tangent(i,j) += resids[i]*resids[j];
+//}
+//}
 
-void
-Projection_Shape_Function::save_fields(Schema * schema,
-  const int_t subset_gid) {
-  Local_Shape_Function::save_fields(schema, subset_gid);
-}
+//DICE_LIB_DLL_EXPORT
+//void affine_map_to_motion( const scalar_t & x,
+//  const scalar_t & y,
+//  scalar_t & out_u,
+//  scalar_t & out_v,
+//  scalar_t & out_theta,
+//  const Teuchos::RCP<const std::vector<scalar_t> > & def){
+//  if(def->size()==DICE_DEFORMATION_SIZE){
+//    out_u = (*def)[DOF_U];
+//    out_v = (*def)[DOF_V];
+//    out_theta = (*def)[DOF_THETA];
+//  }else if(def->size()==DICE_DEFORMATION_SIZE_AFFINE){
+//    scalar_t x_prime = 0.0;
+//    scalar_t y_prime = 0.0;
+//    map_affine(x,y,x_prime,y_prime,def);
+//    out_u = x_prime - x;
+//    out_v = y_prime - y;
+//    // estimate the rotation using the atan2 function (TODO this could be improved)
+//    out_theta = std::atan2((*def)[DOF_B],(*def)[DOF_A]);
+//  }
+//}
 
-Rigid_Body_Shape_Function::Rigid_Body_Shape_Function(const std::string & system_file):
-  Local_Shape_Function(),
-  camera_system_(Teuchos::rcp(new Camera_System(system_file))){
-  TEUCHOS_TEST_FOR_EXCEPTION(camera_system_->num_cameras()!=1,std::runtime_error,"");
-  facet_params_ = camera_system_->camera(0)->get_facet_params();
-  TEUCHOS_TEST_FOR_EXCEPTION(facet_params_.size()!=3,std::runtime_error,"");
-  spec_map_.insert(std::pair<Field_Spec, size_t>(ROT_TRANS_3D_ANG_X_FS, spec_map_.size()));
-  spec_map_.insert(std::pair<Field_Spec, size_t>(ROT_TRANS_3D_ANG_Y_FS, spec_map_.size()));
-  spec_map_.insert(std::pair<Field_Spec, size_t>(ROT_TRANS_3D_ANG_Z_FS, spec_map_.size()));
-  spec_map_.insert(std::pair<Field_Spec, size_t>(ROT_TRANS_3D_TRANS_X_FS, spec_map_.size()));
-  spec_map_.insert(std::pair<Field_Spec, size_t>(ROT_TRANS_3D_TRANS_Y_FS, spec_map_.size()));
-  spec_map_.insert(std::pair<Field_Spec, size_t>(ROT_TRANS_3D_TRANS_Z_FS, spec_map_.size()));
-  num_params_ = spec_map_.size();
-  assert(num_params_ == 6);
-  parameters_.resize(num_params_);
-  deltas_.resize(num_params_);
-  // initialize the parameter values
-  clear();
-  // initialize the deltas:
-  deltas_[ANGLE_X] = 0.005; // these are all in units of physical space (not pixels)
-  deltas_[ANGLE_Y] = 0.005;
-  deltas_[ANGLE_Z] = 0.005;
-  deltas_[TRANS_X] = 0.1;
-  deltas_[TRANS_Y] = 0.1;
-  deltas_[TRANS_Z] = 0.1;
-}
+//DICE_LIB_DLL_EXPORT
+//void affine_add_translation( const scalar_t & u,
+//  const scalar_t & v,
+//  Teuchos::RCP<std::vector<scalar_t> > & def){
+//  assert(def->size()==DICE_DEFORMATION_SIZE_AFFINE);
+//  const scalar_t A = (*def)[DOF_A];
+//  const scalar_t B = (*def)[DOF_B];
+//  const scalar_t C = (*def)[DOF_C];
+//  const scalar_t D = (*def)[DOF_D];
+//  const scalar_t E = (*def)[DOF_E];
+//  const scalar_t F = (*def)[DOF_F];
+//  const scalar_t G = (*def)[DOF_G];
+//  const scalar_t H = (*def)[DOF_H];
+//  const scalar_t I = (*def)[DOF_I];
+//  (*def)[DOF_A] = A + u*G;
+//  (*def)[DOF_B] = B + u*H;
+//  (*def)[DOF_C] = C + u*I;
+//  (*def)[DOF_D] = D + v*G;
+//  (*def)[DOF_E] = E + v*H;
+//  (*def)[DOF_F] = F + v*I;
+//}
 
-void
-Rigid_Body_Shape_Function::clear() {
-  Local_Shape_Function::clear();
-}
 
-void
-Rigid_Body_Shape_Function::reset_fields(Schema * schema) {
-  Local_Shape_Function::reset_fields(schema);
-}
+/// maps an input point to an output point given the affine parameters
+/// as defined by the affine matrix
+/// \param x input x coord
+/// \param y input y coord
+/// \param out_x output x coord
+/// \param out_y output y coord
+/// \param def deformation vector
+//DICE_LIB_DLL_EXPORT
+//inline void map_affine( const scalar_t & x,
+//  const scalar_t & y,
+//  scalar_t & out_x,
+//  scalar_t & out_y,
+//  const Teuchos::RCP<const std::vector<scalar_t> > & def){
+//  assert(def->size()==DICE_DEFORMATION_SIZE_AFFINE);
+//  assert((*def)[6]*x + (*def)[7]*y + (*def)[8]!=0.0);
+//  out_x = ((*def)[0]*x + (*def)[1]*y + (*def)[2])/((*def)[6]*x + (*def)[7]*y + (*def)[8]);
+//  out_y = ((*def)[3]*x + (*def)[4]*y + (*def)[5])/((*def)[6]*x + (*def)[7]*y + (*def)[8]);
+//}
 
-void
-Rigid_Body_Shape_Function::map(const scalar_t & x,
-  const scalar_t & y,
-  const scalar_t & cx,
-  const scalar_t & cy,
-  scalar_t & out_x,
-  scalar_t & out_y) {
-  const std::vector<scalar_t> source_x(1,x);
-  const std::vector<scalar_t> source_y(1,y);
-  // cx and cy are not used (they are included to keep a consistent interfacet to the map method for all shape functions)
-  std::vector<scalar_t> mapped_x(1,0.0);
-  std::vector<scalar_t> mapped_y(1,0.0);
-  // project from the image out to the facet (which gives coordinates in terms of camera 0's coordinate system)
-  // then convert the camera 0 coordinates to the world coordinates (which correspond to the surface of the calibration plate or specimen surface)
-  // then apply a rigid body transformation to get the deformed coordinates, still in terms of the calibration plate's coordinate system
-  // then convert the world coordinates back to camera 0's coordinate system
-  // then convert from camera 0 coordinates to sensor coordinates
-  // then from sensor coordinates to the updated image coordinates
-  // all of this is accomplished with the following call
-  camera_system_->camera_to_camera_projection(0,0,source_x,source_y,mapped_x,mapped_y,facet_params_,parameters_);
-  out_x = mapped_x[0];
-  out_y = mapped_y[0];
-}
+/// computes u, v, and theta for an affine matrix deformation mapping
+/// \param x input x coord
+/// \param y input y coord
+/// \param out_u output u displacement
+/// \param out_v output v displacement
+/// \param out_theta output rotation
+/// \param def deformation vector
+//DICE_LIB_DLL_EXPORT
+//void affine_map_to_motion( const scalar_t & x,
+//  const scalar_t & y,
+//  scalar_t & out_u,
+//  scalar_t & out_v,
+//  scalar_t & out_theta,
+//  const Teuchos::RCP<const std::vector<scalar_t> > & def);
+//
 
-void
-Rigid_Body_Shape_Function::residuals(const scalar_t & x,
-  const scalar_t & y,
-  const scalar_t & cx,
-  const scalar_t & cy,
-  const scalar_t & gx,
-  const scalar_t & gy,
-  std::vector<scalar_t> & residuals,
-  const bool use_ref_grads) {
-  const std::vector<scalar_t> source_x(1,x);
-  const std::vector<scalar_t> source_y(1,y);
-  // cx and cy are not used
-  // mapped x and y are not used either, but returned by the camera_to_camera projection
-  std::vector<scalar_t> mapped_x(1,0);
-  std::vector<scalar_t> mapped_y(1,0);
-  std::vector<std::vector<scalar_t> > dx(num_params_,std::vector<scalar_t>(1,0));
-  std::vector<std::vector<scalar_t> > dy(num_params_,std::vector<scalar_t>(1,0));
-  camera_system_->camera_to_camera_projection(0,0,source_x,source_y,mapped_x,mapped_y,facet_params_,dx,dy,parameters_);
-  residuals[spec_map_.find(ROT_TRANS_3D_ANG_X_FS)->second] = gx * dx[ANGLE_X][0] + gy * dy[ANGLE_X][0];
-  residuals[spec_map_.find(ROT_TRANS_3D_ANG_Y_FS)->second] = gx * dx[ANGLE_Y][0] + gy * dy[ANGLE_Y][0];
-  residuals[spec_map_.find(ROT_TRANS_3D_ANG_Z_FS)->second] = gx * dx[ANGLE_Z][0] + gy * dy[ANGLE_Z][0];
-  residuals[spec_map_.find(ROT_TRANS_3D_TRANS_X_FS)->second] = gx * dx[TRANS_X][0] + gy * dy[TRANS_X][0];
-  residuals[spec_map_.find(ROT_TRANS_3D_TRANS_Y_FS)->second] = gx * dx[TRANS_Y][0] + gy * dy[TRANS_Y][0];
-  residuals[spec_map_.find(ROT_TRANS_3D_TRANS_Z_FS)->second] = gx * dx[TRANS_Z][0] + gy * dy[TRANS_Z][0];
-}
 
-void
-Rigid_Body_Shape_Function::save_fields(Schema * schema,
-  const int_t subset_gid){
-  Local_Shape_Function::save_fields(schema,subset_gid);
-  // since u, v, and theta are not explicitly parameters, need to save them
-  // manually here
-  scalar_t u=0.0,v=0.0,theta=0.0;
-  const scalar_t cx = schema->global_field_value(subset_gid,SUBSET_COORDINATES_X_FS);
-  const scalar_t cy = schema->global_field_value(subset_gid,SUBSET_COORDINATES_Y_FS);
-  map_to_u_v_theta(cx,cy,u,v,theta);
-  schema->global_field_value(subset_gid,SUBSET_DISPLACEMENT_X_FS) = u;
-  schema->global_field_value(subset_gid,SUBSET_DISPLACEMENT_Y_FS) = v;
-  schema->global_field_value(subset_gid,ROTATION_Z_FS) = theta;
-}
-
-void
-Rigid_Body_Shape_Function::map_to_u_v_theta(const scalar_t & cx,
-  const scalar_t & cy,
-  scalar_t & out_u,
-  scalar_t & out_v,
-  scalar_t & out_theta){
-  scalar_t cxp=0.0,cyp=0.0;
-  // map the centroid
-  map(cx,cy,cx,cy,cxp,cyp);
-  out_u = cxp - cx;
-  out_v = cyp - cy;
-  // map a point 5 pixels to the right of the centroid
-  // the 5 is arbitrary
-  scalar_t rxp=0.0,ryp=0.0;
-  map(cx+5.0,cy,cx,cy,rxp,ryp);
-  // get the angle between two rays...
-  const scalar_t ax = rxp - cxp;
-  const scalar_t ay = ryp - cyp;
-  const scalar_t mag_a = std::sqrt(ax*ax+ay*ay);
-  const scalar_t bx = 5.0;
-  const scalar_t by = 0.0;
-  const scalar_t mag_b = 5.0;
-  const scalar_t a_dot_b_over_mags = (ax*bx + ay*by)/(mag_a*mag_b);
-  // if the change in y is negative, have to add pi to account for accute angle measured
-  // from the other direction in terms of clockwise
-  out_theta = ay < 0.0 ? DICE_TWOPI - std::acos(a_dot_b_over_mags) : std::acos(a_dot_b_over_mags);
-}
 
 }// End DICe Namespace

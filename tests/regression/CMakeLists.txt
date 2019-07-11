@@ -11,35 +11,27 @@ SET(REGRESSION_TESTS
   conformal_subset_def
   dic_challenge_12
   dic_challenge_12_sorted
-  image_reg_init
+  bitmap_star
 )
 
-IF(DICE_USE_DOUBLE)
+IF(NOT DICE_USE_DOUBLE)
   SET(REGRESSION_TESTS
     ${REGRESSION_TESTS}
-    bitmap_star
-  )
-  IF(DICE_ENABLE_NETCDF)
-    SET(REGRESSION_TESTS
-      ${REGRESSION_TESTS}
-      netcdf)
-  ENDIF()
-ELSE()
-  SET(REGRESSION_TESTS
-    ${REGRESSION_TESTS}
-    # this test is flakey so turning it off
-    # mechanism_optical_flow
+    mechanism_optical_flow
     simple_obstruction
   )
-  #IF(NOT DICE_ENABLE_MANYCORE)
-  #  SET(REGRESSION_TESTS
-  #    ${REGRESSION_TESTS}
-  #    # this test is flakey so turning it off
-  #    mechanism_skip_solves 
-  #  )
-  #ENDIF()
+  IF(NOT DICE_ENABLE_MANYCORE)
+    SET(REGRESSION_TESTS
+      ${REGRESSION_TESTS}
+      mechanism_skip_solves 
+    )
+  ENDIF()
 ENDIF()
-
+IF(DICE_ENABLE_NETCDF)
+  SET(REGRESSION_TESTS
+    ${REGRESSION_TESTS}
+    netcdf)
+ENDIF()
 
 FOREACH ( test ${REGRESSION_TESTS})
     # Copy over all the test files (input and results)
